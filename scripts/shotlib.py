@@ -35,11 +35,12 @@ def probe_frames(path):
     """Count video frames by decoding (imageio-ffmpeg ships no ffprobe)."""
     exe = ffmpeg_exe()
     r = subprocess.run(
-        [exe, "-i", path, "-map", "0:v:0", "-c", "copy", "-f", "null", "-"],
+        [exe, "-i", path, "-map", "0:v:0", "-f", "null", "-"],
         capture_output=True, text=True)
-    for line in reversed(r.stderr.splitlines()):
-        if line.startswith("frame="):
-            return int(line.split("frame=")[1].split()[0])
+    import re
+    m = re.findall(r"frame=\s*(\d+)", r.stderr)
+    if m:
+        return int(m[-1])
     sys.exit(f"could not count frames of {path}")
 
 

@@ -1,0 +1,8 @@
+# deploy only the site: index.html + assets/ + public/
+*
+!index.html
+!vercel.json
+!assets
+!assets/**
+!public
+!public/**
