@@ -1,0 +1,92 @@
+{
+  "product": "Red Bull Energy Drink — original 250 ml slim can (unofficial concept project)",
+  "models": {
+    "still": { "model": "gpt_image_2", "aspect_ratio": "16:9", "resolution": "2k" },
+    "video": { "model": "seedance_2_0", "resolution": "4k", "generate_audio": false }
+  },
+  "seed": 1987,
+  "notes": {
+    "video_model": "seedance_2_0 has NO seed and NO negative-prompt parameters; continuity comes entirely from the locked start image. Always image-to-video, never text-to-video.",
+    "download": "Always download the job's result_url. Never *_min / *_resize preview URLs.",
+    "review": "Every take gets a review strip (scripts/review_strip.py) and a human-eye pass before acceptance. Gate on: RED BULL wordmark legible and correctly spelled, double-bull logo intact, slim 250ml proportions (not a stubby soda can), no duplicate cans, no hands, no watermarks."
+  },
+  "prompt_composition": {
+    "order": ["shot_move", "subject", "style_bible"],
+    "files": {
+      "subject": "prompts/subject.txt",
+      "style_bible": "prompts/style-bible.txt",
+      "negative_review_criteria": "prompts/negative.txt"
+    }
+  },
+  "anchors": {
+    "hero": {
+      "file": "takes/anchors/hero.png",
+      "prompt_file": "prompts/anchors/hero-still.txt",
+      "note": "Lock this FIRST. Iterate until perfect, then NEVER change it. Every exterior shot animates it."
+    },
+    "lid": {
+      "file": "takes/anchors/lid.png",
+      "prompt_file": "prompts/anchors/lid-still.txt",
+      "reference": "reference/ (owner photo of the stay-tab lid, if provided)",
+      "note": "Use owner photo as --image reference for identity; describe the RELIGHT into the studio look, never a new scene."
+    },
+    "pour": {
+      "file": "takes/anchors/pour.png",
+      "prompt_file": "prompts/anchors/pour-still.txt"
+    },
+    "ingredients": {
+      "file": "takes/anchors/ingredients.png",
+      "prompt_file": "prompts/anchors/ingredients-still.txt"
+    },
+    "element": {
+      "file": "takes/anchors/element.png",
+      "prompt_file": "prompts/anchors/element-still.txt"
+    }
+  },
+  "shots": {
+    "A": { "kind": "video", "duration": 5, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/A-hero-orbit.txt", "output": "takes/A.mp4", "feeds": "hero scrub" },
+    "B": { "kind": "video", "duration": 4, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/B-logo-push.txt", "output": "takes/B.mp4", "feeds": "connective scrub" },
+    "C1": { "kind": "video", "duration": 4, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/C1-approach.txt", "output": "takes/C1.mp4", "feeds": "opening scrub (part 1)" },
+    "C2": { "kind": "video", "duration": 4, "start_image": "takes/anchors/lid.png", "prompt_file": "prompts/shots/C2-opening.txt", "output": "takes/C2.mp4", "feeds": "opening scrub (part 2, xfade dissolve)" },
+    "D": { "kind": "video", "duration": 4, "start_image": "takes/anchors/lid.png", "prompt_file": "prompts/shots/D-lid-drift.txt", "output": "takes/D.mp4", "feeds": "ambient loop (mirrored palindrome)" },
+    "E1": { "kind": "video", "duration": 4, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/E1-track.txt", "output": "takes/E1.mp4", "feeds": "pour scrub (part 1)" },
+    "E2": { "kind": "video", "duration": 4, "start_image": "takes/anchors/pour.png", "prompt_file": "prompts/shots/E2-pour.txt", "output": "takes/E2.mp4", "feeds": "pour scrub (part 2, xfade dissolve)" },
+    "F": { "kind": "video", "duration": 4, "start_image": "takes/anchors/ingredients.png", "prompt_file": "prompts/shots/F-ingredients.txt", "output": "takes/F.mp4", "feeds": "ambient loop (mirror if ends differ)" },
+    "G": { "kind": "video", "duration": 5, "start_image": "takes/anchors/element.png", "prompt_file": "prompts/shots/G-element.txt", "output": "takes/G.mp4", "feeds": "outro loop" },
+    "H": { "kind": "video", "duration": 4, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/H-turntable.txt", "output": "takes/H.mp4", "feeds": "24-frame turntable + 5 Edition recolors" }
+  },
+  "dissolves": {
+    "C": { "parts": ["takes/C1.mp4", "takes/C2.mp4"], "output": "takes/C.mp4", "xfade": { "transition": "fade", "duration": 0.6 } },
+    "E": { "parts": ["takes/E1.mp4", "takes/E2.mp4"], "output": "takes/E.mp4", "xfade": { "transition": "fade", "duration": 0.6 } }
+  },
+  "sequences": {
+    "hero":    { "source": "takes/A.mp4", "desktop": { "frames": 120, "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/hero" },    "mobile": { "frames": 60, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/hero" } },
+    "logo":    { "source": "takes/B.mp4", "desktop": { "frames": 90,  "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/logo" },    "mobile": { "frames": 45, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/logo" } },
+    "opening": { "source": "takes/C.mp4", "desktop": { "frames": 90,  "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/opening" }, "mobile": { "frames": 45, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/opening" } },
+    "pour":    { "source": "takes/E.mp4", "desktop": { "frames": 90,  "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/pour" },    "mobile": { "frames": 45, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/pour" } }
+  },
+  "turntable": {
+    "source": "takes/H.mp4",
+    "frames": 24, "width": 1920, "quality": 80, "budget_mb": 8,
+    "dir": "public/turn/original",
+    "source_chroma_hex": "#1E3F8F",
+    "colorways": [
+      { "id": "original", "name": "Original",         "line": "The one that started it all. 1987.",        "hex": "#1E3F8F", "recolor": false },
+      { "id": "seablue",  "name": "Sea Blue Edition", "line": "The taste of juneberry.",                   "hex": "#0E7C9E", "recolor": true, "dir": "public/turn/seablue" },
+      { "id": "pink",     "name": "Pink Edition",     "line": "Raspberry with herbal verbena.",            "hex": "#D6336C", "recolor": true, "dir": "public/turn/pink" },
+      { "id": "yellow",   "name": "Yellow Edition",   "line": "The taste of tropical fruits.",             "hex": "#F5C400", "recolor": true, "dir": "public/turn/yellow" },
+      { "id": "peach",    "name": "Peach Edition",    "line": "White peach, citrus peel, floral notes.",   "hex": "#F49A6A", "recolor": true, "dir": "public/turn/peach" },
+      { "id": "red",      "name": "Red Edition",      "line": "The taste of watermelon.",                  "hex": "#D62839", "recolor": true, "dir": "public/turn/red" }
+    ]
+  },
+  "loops": {
+    "lid":     { "source": "takes/D.mp4", "palindrome": true,  "width": 1920, "out_mp4": "public/loops/lid.mp4",     "out_webm": "public/loops/lid.webm" },
+    "bubbles": { "source": "takes/F.mp4", "palindrome": true,  "width": 1920, "out_mp4": "public/loops/bubbles.mp4", "out_webm": "public/loops/bubbles.webm" },
+    "element": { "source": "takes/G.mp4", "palindrome": false, "width": 1920, "out_mp4": "public/loops/element.mp4", "out_webm": "public/loops/element.webm" }
+  },
+  "budgets": {
+    "webp_quality_step_down": 8,
+    "webp_quality_floor": 40,
+    "rule": "Over budget: step quality down by 8 and re-encode. Below q40: reshoot. Cut frames before resolution."
+  }
+}

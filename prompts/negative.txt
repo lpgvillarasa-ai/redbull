@@ -1,0 +1,11 @@
+# Universal negative list.
+# seedance_2_0 accepts no negative prompt — this file is the REVIEW CRITERIA
+# checklist applied to every frame strip before a take is accepted.
+text errors or gibberish lettering on the can
+warped or misspelled RED BULL wordmark
+wrong bull logo, mutated or merged bulls, missing sun circle
+duplicate cans
+hands
+watermarks
+competitor cans
+wide stubby soda-can proportions (the can must stay slim, ~13.5 x 5.3 cm)

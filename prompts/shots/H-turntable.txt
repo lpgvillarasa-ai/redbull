@@ -1,0 +1,1 @@
+The can performs one full continuous 360-degree rotation about its vertical axis at constant speed, the camera perfectly fixed and level at label height, seamless start and end, lighting constant.
