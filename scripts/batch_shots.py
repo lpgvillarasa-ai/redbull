@@ -35,12 +35,16 @@ def main():
         s = cfg["shots"][sid]
         start = os.path.join(ROOT, s["start_image"])
         assert os.path.isfile(start), f"missing anchor {start}"
-        j = cli_json(["higgsfield", "generate", "create", vid["model"],
-                      "--prompt", compose_prompt(s["prompt_file"], cfg),
-                      "--start-image", start,
-                      "--duration", str(s["duration"]),
-                      "--resolution", vid["resolution"],
-                      "--generate_audio", "false", "--json"])
+        cmd = ["higgsfield", "generate", "create", vid["model"],
+               "--prompt", compose_prompt(s["prompt_file"], cfg),
+               "--start-image", start,
+               "--duration", str(s["duration"]),
+               "--resolution", vid["resolution"],
+               "--generate_audio", "false", "--json"]
+        if s.get("end_image"):
+            cmd = cmd[:-1] + ["--end-image", os.path.join(ROOT, s["end_image"]),
+                              "--aspect_ratio", "16:9", "--json"]
+        j = cli_json(cmd)
         if isinstance(j, list):
             j = j[0]
         jid = j if isinstance(j, str) else (

@@ -53,21 +53,28 @@
     "E2": { "kind": "video", "duration": 4, "start_image": "takes/anchors/pour.png", "prompt_file": "prompts/shots/E2-pour.txt", "output": "takes/E2.mp4", "feeds": "pour scrub (part 2, xfade dissolve)" },
     "F": { "kind": "video", "duration": 4, "start_image": "takes/anchors/ingredients.png", "prompt_file": "prompts/shots/F-ingredients.txt", "output": "takes/F.mp4", "feeds": "ambient loop (mirror if ends differ)" },
     "G": { "kind": "video", "duration": 5, "start_image": "takes/anchors/element.png", "prompt_file": "prompts/shots/G-element.txt", "output": "takes/G.mp4", "feeds": "outro loop" },
-    "H": { "kind": "video", "duration": 4, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/H-turntable.txt", "output": "takes/H.mp4", "feeds": "24-frame turntable + 5 Edition recolors" }
+    "H": { "kind": "video", "duration": 4, "start_image": "takes/anchors/hero.png", "prompt_file": "prompts/shots/H-turntable.txt", "output": "takes/H.mp4", "feeds": "96-frame turntable" },
+    "T1": { "kind": "video", "duration": 4, "start_image": "retrofit/pins/A-last.png", "end_image": "retrofit/pins/B-first.png", "prompt_file": "prompts/shots/T1-orbit-close.txt", "output": "takes/T1.mp4", "feeds": "bridge A->B (orbit closes)" },
+    "T2": { "kind": "video", "duration": 4, "start_image": "retrofit/pins/B-last.png", "end_image": "retrofit/pins/C2-first.png", "prompt_file": "prompts/shots/T2-rise-to-lid.txt", "output": "takes/T2.mp4", "feeds": "bridge B->C2 (rise to lid)" },
+    "T3": { "kind": "video", "duration": 4, "start_image": "retrofit/pins/C2-last.png", "end_image": "retrofit/pins/E2-first.png", "prompt_file": "prompts/shots/T3-tip-and-pour.txt", "output": "takes/T3.mp4", "feeds": "bridge C2->E2 (tip and pour)" }
   },
-  "dissolves": {
-    "C": { "parts": ["takes/C1.mp4", "takes/C2.mp4"], "output": "takes/C.mp4", "xfade": { "transition": "fade", "duration": 0.6 } },
-    "E": { "parts": ["takes/E1.mp4", "takes/E2.mp4"], "output": "takes/E.mp4", "xfade": { "transition": "fade", "duration": 0.6 } }
-  },
-  "sequences": {
-    "hero":    { "source": "takes/A.mp4", "desktop": { "frames": 120, "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/hero" },    "mobile": { "frames": 60, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/hero" } },
-    "logo":    { "source": "takes/B.mp4", "desktop": { "frames": 90,  "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/logo" },    "mobile": { "frames": 45, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/logo" } },
-    "opening": { "source": "takes/C.mp4", "desktop": { "frames": 90,  "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/opening" }, "mobile": { "frames": 45, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/opening" } },
-    "pour":    { "source": "takes/E.mp4", "desktop": { "frames": 90,  "width": 2560, "quality": 84, "budget_mb": 16, "dir": "public/seq/pour" },    "mobile": { "frames": 45, "width": 1080, "quality": 78, "budget_mb": 3, "dir": "public/seq-m/pour" } }
+  "film": {
+    "note": "One continuous camera journey. Cut from the film: C1 (wide approach after a push-in = reversal) and E1 (wide track after a macro = reversal); both stay in takes/ as standalone clips. Bridges T1-T3 are dual-pinned seedance takes; each bridge's end image IS the actual first frame of what follows in this cut.",
+    "desktop": { "width": 2560, "quality": 84, "dir": "public/film" },
+    "mobile":  { "width": 1080, "quality": 78, "dir": "public/film-m" },
+    "segments": [
+      { "id": "A",  "label": "SHOT A — HERO ORBIT",       "source": "takes/A.mp4",  "frames": 120, "frames_m": 60, "budget_mb": 16, "budget_mb_m": 3 },
+      { "id": "T1", "label": "TRANSIT — THE ORBIT CLOSES", "source": "takes/T1.mp4", "frames": 48,  "frames_m": 24, "budget_mb": 8,  "budget_mb_m": 1.5 },
+      { "id": "B",  "label": "SHOT B — LOGO PUSH-IN",      "source": "takes/B.mp4",  "frames": 90,  "frames_m": 45, "budget_mb": 16, "budget_mb_m": 3 },
+      { "id": "T2", "label": "TRANSIT — RISE TO THE LID",  "source": "takes/T2.mp4", "frames": 48,  "frames_m": 24, "budget_mb": 8,  "budget_mb_m": 1.5 },
+      { "id": "C2", "label": "SHOT C — THE OPENING",       "source": "takes/C2.mp4", "frames": 90,  "frames_m": 45, "budget_mb": 16, "budget_mb_m": 3 },
+      { "id": "T3", "label": "TRANSIT — TIP AND POUR",     "source": "takes/T3.mp4", "frames": 48,  "frames_m": 24, "budget_mb": 8,  "budget_mb_m": 1.5 },
+      { "id": "E2", "label": "SHOT E — THE POUR",          "source": "takes/E2.mp4", "frames": 90,  "frames_m": 45, "budget_mb": 16, "budget_mb_m": 3 }
+    ]
   },
   "turntable": {
     "source": "takes/H.mp4",
-    "frames": 24, "width": 1920, "quality": 80, "budget_mb": 8,
+    "frames": 96, "width": 1920, "quality": 80, "budget_mb": 12,
     "dir": "public/turn/original",
     "source_chroma_hex": "#1E3F8F",
     "colorways": [

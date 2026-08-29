@@ -45,11 +45,14 @@ def check_seq(d, frames, width, budget_mb, label):
 
 def main():
     cfg = load_config()
-    print("sequences:")
-    for name, seq in cfg["sequences"].items():
-        for variant in ("desktop", "mobile"):
-            v = seq[variant]
-            check_seq(v["dir"], v["frames"], v["width"], v["budget_mb"], f"{name}/{variant}")
+    print("film:")
+    film = cfg["film"]
+    for seg in film["segments"]:
+        d, m = film["desktop"], film["mobile"]
+        check_seq(f"{d['dir']}/{seg['id']}", seg["frames"], d["width"],
+                  seg["budget_mb"], f"film/{seg['id']}")
+        check_seq(f"{m['dir']}/{seg['id']}", seg["frames_m"], m["width"],
+                  seg["budget_mb_m"], f"film-m/{seg['id']}")
 
     print("turntable:")
     t = cfg["turntable"]

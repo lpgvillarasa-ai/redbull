@@ -67,13 +67,15 @@ def main():
                 t["budget_mb"], q_step, q_floor, exclusive_end=True)
         return
 
-    for name, seq in cfg["sequences"].items():
-        if args and name not in args:
+    film = cfg["film"]
+    for seg in film["segments"]:
+        if args and seg["id"] not in args:
             continue
-        for variant in ("desktop", "mobile"):
-            v = seq[variant]
-            extract(seq["source"], v["dir"], v["frames"], v["width"], v["quality"],
-                    v["budget_mb"], q_step, q_floor)
+        d, m = film["desktop"], film["mobile"]
+        extract(seg["source"], f"{d['dir']}/{seg['id']}", seg["frames"],
+                d["width"], d["quality"], seg["budget_mb"], q_step, q_floor)
+        extract(seg["source"], f"{m['dir']}/{seg['id']}", seg["frames_m"],
+                m["width"], m["quality"], seg["budget_mb_m"], q_step, q_floor)
 
 
 if __name__ == "__main__":

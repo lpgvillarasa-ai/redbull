@@ -1,143 +1,191 @@
-/* RED BULL — scroll film. Vanilla JS: canvas scrub acts, lazy preloading,
-   loops, drag turntable with Edition recolors, HUD, copy waypoints. */
+/* RED BULL — scroll film. One master timeline: every scrub segment
+   concatenated virtually into a single global frame index on one sticky
+   canvas, with dissolve insurance at joins, ordered ahead-of-playhead
+   preloading and a nearest-loaded-frame fallback. Loops, ingredients and
+   the turntable flow below the film as normal sections. */
 "use strict";
 
 const MOBILE = matchMedia("(max-width: 720px)").matches;
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const DPR = Math.min(devicePixelRatio || 1, 2);
 
-const SEQ = {
-  hero:    { dir: MOBILE ? "public/seq-m/hero"    : "public/seq/hero",    frames: MOBILE ? 60 : 120 },
-  logo:    { dir: MOBILE ? "public/seq-m/logo"    : "public/seq/logo",    frames: MOBILE ? 45 : 90 },
-  opening: { dir: MOBILE ? "public/seq-m/opening" : "public/seq/opening", frames: MOBILE ? 45 : 90 },
-  pour:    { dir: MOBILE ? "public/seq-m/pour"    : "public/seq/pour",    frames: MOBILE ? 45 : 90 },
-};
-const TURN = { frames: 24, dir: () => "public/turn/original" };
+/* ---------- the film manifest (mirrors shots.config.json "film") ---------- */
+const FILM_DIR = MOBILE ? "public/film-m" : "public/film";
+const SEGMENTS = [
+  { id: "A",  label: "SHOT A — HERO ORBIT",        frames: MOBILE ? 60 : 120 },
+  { id: "T1", label: "TRANSIT — THE ORBIT CLOSES", frames: MOBILE ? 24 : 48 },
+  { id: "B",  label: "SHOT B — LOGO PUSH-IN",      frames: MOBILE ? 45 : 90 },
+  { id: "T2", label: "TRANSIT — RISE TO THE LID",  frames: MOBILE ? 24 : 48 },
+  { id: "C2", label: "SHOT C — THE OPENING",       frames: MOBILE ? 45 : 90 },
+  { id: "T3", label: "TRANSIT — TIP AND POUR",     frames: MOBILE ? 24 : 48 },
+  { id: "E2", label: "SHOT E — THE POUR",          frames: MOBILE ? 45 : 90 },
+];
+const PREFIX = SEGMENTS.reduce((a, s) => (a.push(a[a.length - 1] + s.frames), a), [0]);
+const TOTAL = PREFIX[PREFIX.length - 1];
+const JOINS = PREFIX.slice(1, -1);          // interior boundaries, global frame index
+const XFADE = 4;                            // dissolve insurance, frames each side
+const VH_PER_FRAME = MOBILE ? 8 : 4;        // same physical scroll length either way
 
 const pad = n => String(n).padStart(4, "0");
-const frameURL = (dir, i) => `${dir}/${pad(i + 1)}.webp`;
-const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2); // easeInOutQuad
+const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-/* ---------- sequence loader ---------- */
-function loadSequence(seq, onProgress) {
-  if (seq.promise) return seq.promise;
-  seq.images = new Array(seq.frames);
+/* ---------- segment loading ---------- */
+SEGMENTS.forEach(s => { s.images = null; s.started = false; });
+
+function loadSegment(i, onProgress) {
+  const seg = SEGMENTS[i];
+  if (!seg || seg.started) return seg && seg.promise;
+  seg.started = true;
+  seg.images = new Array(seg.frames);
   let done = 0;
-  seq.promise = Promise.all(Array.from({ length: seq.frames }, (_, i) =>
+  seg.promise = Promise.all(Array.from({ length: seg.frames }, (_, f) =>
     new Promise(resolve => {
       const img = new Image();
-      img.onload = img.onerror = () => { done++; onProgress?.(done / seq.frames); resolve(); };
-      img.src = frameURL(seq.dir, i);
-      seq.images[i] = img;
+      img.onload = img.onerror = () => {
+        done++; onProgress?.(done / seg.frames);
+        if (img === nearestPending) redraw();
+        resolve();
+      };
+      img.src = `${FILM_DIR}/${seg.id}/${pad(f + 1)}.webp`;
+      seg.images[f] = img;
     })
-  ));
-  return seq.promise;
+  )).then(() => redraw());
+  return seg.promise;
+}
+let nearestPending = null;                  // the substituted-for image; redraw when it lands
+
+function segAt(g) {
+  let i = 0;
+  while (i < SEGMENTS.length - 1 && g >= PREFIX[i + 1]) i++;
+  return i;
 }
 
-/* ---------- cover-fit draw ---------- */
-function drawCover(ctx, img, w, h) {
-  if (!img || !img.naturalWidth) return;
-  const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+/* nearest fully-decoded frame in the segment, searching outward — never blank */
+function nearestLoaded(seg, local) {
+  if (!seg.images) return null;
+  for (let d = 0; d < seg.frames; d++) {
+    for (const f of d ? [local - d, local + d] : [local]) {
+      if (f >= 0 && f < seg.frames) {
+        const img = seg.images[f];
+        if (img && img.complete && img.naturalWidth) return img;
+      }
+    }
+  }
+  return null;
+}
+
+/* ---------- canvas ---------- */
+const filmSection = document.getElementById("film-act");
+const canvas = document.getElementById("film-canvas");
+const ctx = canvas.getContext("2d");
+filmSection.style.height = `${TOTAL * VH_PER_FRAME}vh`;
+let W = 0, H = 0;
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  W = canvas.width = Math.round(r.width * DPR);
+  H = canvas.height = Math.round(r.height * DPR);
+}
+resize();
+addEventListener("resize", () => { resize(); redraw(); });
+
+function drawCover(img, alpha) {
+  if (!img) return;
+  const s = Math.max(W / img.naturalWidth, H / img.naturalHeight);
   const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  ctx.globalAlpha = alpha ?? 1;
+  ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  ctx.globalAlpha = 1;
 }
 
-/* ---------- HUD ---------- */
+let gFrame = -1;
+
+function draw(g) {
+  const i = segAt(g);
+  const seg = SEGMENTS[i];
+  const local = g - PREFIX[i];
+  const exact = seg.images?.[local];
+  const img = (exact && exact.complete && exact.naturalWidth) ? exact : nearestLoaded(seg, local);
+  nearestPending = img === exact ? null : exact;
+  drawCover(img);
+  // dissolve insurance across every join (bridges are pinned, this is belt+braces)
+  for (const b of JOINS) {
+    const d = g - b;
+    if (d >= -XFADE && d < XFADE) {
+      const other = d < 0
+        ? nearestLoaded(SEGMENTS[segAt(b)], 0)
+        : nearestLoaded(SEGMENTS[segAt(b - 1)], SEGMENTS[segAt(b - 1)].frames - 1);
+      if (other) drawCover(other, (XFADE - Math.abs(d)) / (XFADE * 2));
+      break;
+    }
+  }
+}
+function redraw() { if (gFrame >= 0) draw(gFrame); }
+
+/* ---------- HUD + copy waypoints ---------- */
 const hudShot = document.getElementById("hud-shot");
 const hudFrame = document.getElementById("hud-frame");
-function hud(shot, frame, total) {
-  hudShot.textContent = shot;
-  hudFrame.textContent = `${pad(frame + 1)} / ${pad(total)}`;
+const wps = [...filmSection.querySelectorAll(".wp")].map(el => {
+  const i = SEGMENTS.findIndex(s => s.id === el.dataset.seg);
+  const [a, b] = el.dataset.win.split(",").map(Number);
+  return { el, from: PREFIX[i] + a * SEGMENTS[i].frames, to: PREFIX[i] + b * SEGMENTS[i].frames };
+});
+
+function filmTick() {
+  const rect = filmSection.getBoundingClientRect();
+  const span = rect.height - innerHeight;
+  const p = Math.min(1, Math.max(0, -rect.top / span));
+  const g = Math.round(ease(p) * (TOTAL - 1));
+  if (g !== gFrame) {
+    gFrame = g;
+    draw(g);
+    ensureAhead(g);
+  }
+  if (rect.bottom > innerHeight * 0.5 && rect.top < innerHeight * 0.5) {
+    hudShot.textContent = SEGMENTS[segAt(g)].label;
+    hudFrame.textContent = `${pad(g + 1)} / ${pad(TOTAL)}`;
+  }
+  for (const w of wps) w.el.classList.toggle("on", g >= w.from && g <= w.to);
 }
 
-/* ---------- scrub acts ---------- */
-class ScrubAct {
-  constructor(section) {
-    this.section = section;
-    this.seq = SEQ[section.dataset.seq];
-    this.shot = section.dataset.shot;
-    this.canvas = section.querySelector("canvas");
-    this.ctx = this.canvas.getContext("2d");
-    this.frame = -1;
-    this.resize();
-    addEventListener("resize", () => { this.resize(); this.frame = -1; this.tick(true); });
-  }
-  resize() {
-    const r = this.canvas.getBoundingClientRect();
-    this.w = Math.round(r.width * DPR);
-    this.h = Math.round(r.height * DPR);
-    this.canvas.width = this.w;
-    this.canvas.height = this.h;
-  }
-  progress() {
-    const rect = this.section.getBoundingClientRect();
-    const total = rect.height - innerHeight;
-    return Math.min(1, Math.max(0, -rect.top / total));
-  }
-  tick(force) {
-    const p = this.progress();
-    const f = Math.round(ease(p) * (this.seq.frames - 1));
-    if (f !== this.frame || force) {
-      this.frame = f;
-      const img = this.seq.images?.[f];
-      if (img) drawCover(this.ctx, img, this.w, this.h);
-    }
-    const rect = this.section.getBoundingClientRect();
-    if (rect.top < innerHeight * 0.5 && rect.bottom > innerHeight * 0.5)
-      hud(this.shot, f, this.seq.frames);
-    // copy waypoints
-    for (const wp of this.section.querySelectorAll(".wp")) {
-      const [a, b] = wp.dataset.win.split(",").map(Number);
-      wp.classList.toggle("on", p >= a && p <= b);
-    }
-  }
+/* ordered ahead-of-playhead preloading: current segment + the next one */
+function ensureAhead(g) {
+  const i = segAt(g);
+  loadSegment(i);
+  if (i + 1 < SEGMENTS.length && g >= PREFIX[i + 1] - SEGMENTS[i].frames) loadSegment(i + 1);
 }
 
-/* ---------- boot: loader curtain over hero preload ---------- */
+/* ---------- loader curtain over segment A ---------- */
 const loaderEl = document.getElementById("loader");
 const fillEl = document.getElementById("loader-fill");
 const pctEl = document.getElementById("loader-pct");
-const acts = [...document.querySelectorAll(".scrub-act")].map(s => new ScrubAct(s));
-
 let revealed = false;
 function reveal() {
   if (revealed) return;
   revealed = true;
   loaderEl.classList.add("done");
-  acts[0].tick(true);
+  gFrame = -1;
+  filmTick();
 }
-loadSequence(SEQ.hero, p => {
+loadSegment(0, p => {
   const pct = Math.round(p * 100);
   fillEl.style.width = pct + "%";
   pctEl.textContent = String(pct).padStart(2, "0") + "%";
-  if (p >= 0.55) reveal();           // progressive reveal
-}).then(reveal);
-setTimeout(reveal, 12000);           // never trap the visitor
+  if (p >= 0.55) reveal();
+});
+setTimeout(reveal, 12000);
+loadSegment(1);                              // T1 warms right behind the hero
 
-/* lazy-preload other acts one viewport early */
-const io = new IntersectionObserver(entries => {
-  for (const e of entries) {
-    if (!e.isIntersecting) continue;
-    const seq = SEQ[e.target.dataset.seq];
-    if (seq) loadSequence(seq).then(() => {
-      const act = acts.find(a => a.seq === seq);
-      act && act.tick(true);
-    });
-    io.unobserve(e.target);
-  }
-}, { rootMargin: "100% 0px" });
-acts.slice(1).forEach(a => io.observe(a.section));
-
-/* scroll loop */
+/* ---------- scroll loop ---------- */
 let raf = null;
 addEventListener("scroll", () => {
   if (raf) return;
-  raf = requestAnimationFrame(() => { raf = null; acts.forEach(a => a.tick()); loopHud(); });
+  raf = requestAnimationFrame(() => { raf = null; filmTick(); flowTick(); });
 }, { passive: true });
 
-/* ---------- loop videos: attach sources + play near viewport ---------- */
+/* ---------- normal-flow sections: loops, ingredients, turntable ---------- */
 const loopIO = new IntersectionObserver(entries => {
   for (const e of entries) {
     const v = e.target;
@@ -158,15 +206,15 @@ const loopIO = new IntersectionObserver(entries => {
 }, { rootMargin: "60% 0px" });
 document.querySelectorAll("video[data-mp4]").forEach(v => loopIO.observe(v));
 
-function loopHud() {
+function flowTick() {
   for (const sec of document.querySelectorAll(".loop-act, .ingredients, .turntable")) {
     const r = sec.getBoundingClientRect();
     if (r.top < innerHeight * 0.5 && r.bottom > innerHeight * 0.5) {
       hudShot.textContent = sec.dataset.shot;
-      hudFrame.textContent = "LOOP";
-      if (sec.classList.contains("turntable")) hudFrame.textContent = `${pad(turnFrame + 1)} / ${pad(TURN.frames)}`;
+      hudFrame.textContent = sec.classList.contains("turntable")
+        ? `${pad((Math.round(turnPos) % TURN_N + TURN_N) % TURN_N + 1)} / ${pad(TURN_N)}`
+        : "LOOP";
     }
-    // loop-act waypoints scrub on their own section progress
     if (sec.classList.contains("loop-act")) {
       const total = Math.max(1, r.height - innerHeight);
       const p = Math.min(1, Math.max(0, -r.top / total));
@@ -194,15 +242,22 @@ const countIO = new IntersectionObserver(entries => {
 }, { threshold: 0.6 });
 document.querySelectorAll(".count").forEach(el => countIO.observe(el));
 
-/* ---------- turntable ---------- */
+/* ---------- turntable: 96 frames, fractional angle, wrap-blended ---------- */
+const TURN_N = 96;
 const turnCanvas = document.getElementById("turn-canvas");
 const turnCtx = turnCanvas.getContext("2d");
-const turnSequence = { dir: TURN.dir(), frames: TURN.frames };
-let turnFrame = 0, turnPos = 0, turnVel = 0;
+const turnImgs = new Array(TURN_N);
+let turnStarted = false, turnPos = 0, turnVel = 0;
 let dragging = false, lastX = 0, idle = true;
 
-function turnSeq() {
-  return turnSequence;
+function loadTurn() {
+  if (turnStarted) return;
+  turnStarted = true;
+  for (let f = 0; f < TURN_N; f++) {
+    const img = new Image();
+    img.src = `public/turn/original/${pad(f + 1)}.webp`;
+    turnImgs[f] = img;
+  }
 }
 function sizeTurn() {
   const r = turnCanvas.getBoundingClientRect();
@@ -210,24 +265,33 @@ function sizeTurn() {
   turnCanvas.height = Math.round(r.height * DPR);
 }
 sizeTurn();
-addEventListener("resize", () => { sizeTurn(); drawTurn(true); });
+addEventListener("resize", sizeTurn);
 
-function drawTurn(force) {
-  const seq = turnSeq();
-  if (!seq.images) return;
-  const f = ((Math.round(turnPos) % TURN.frames) + TURN.frames) % TURN.frames;
-  if (f === turnFrame && !force) return;
-  turnFrame = f;
-  drawCover(turnCtx, seq.images[f], turnCanvas.width, turnCanvas.height);
+function turnDrawImg(img, alpha) {
+  if (!img || !img.complete || !img.naturalWidth) return;
+  const s = Math.max(turnCanvas.width / img.naturalWidth, turnCanvas.height / img.naturalHeight);
+  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+  turnCtx.imageSmoothingEnabled = true;
+  turnCtx.imageSmoothingQuality = "high";
+  turnCtx.globalAlpha = alpha;
+  turnCtx.drawImage(img, (turnCanvas.width - dw) / 2, (turnCanvas.height - dh) / 2, dw, dh);
+  turnCtx.globalAlpha = 1;
+}
+function drawTurn() {
+  const posMod = ((turnPos % TURN_N) + TURN_N) % TURN_N;
+  const i = Math.floor(posMod);
+  const frac = posMod - i;
+  turnDrawImg(turnImgs[i], 1);
+  if (frac > 0.001) turnDrawImg(turnImgs[(i + 1) % TURN_N], frac);   // across the wrap too
 }
 (function spin(prev) {
   requestAnimationFrame(t => {
-    const dt = prev ? (t - prev) / 1000 : 0.016;
+    const dt = prev ? Math.min(0.1, (t - prev) / 1000) : 0.016;
     if (!dragging) {
-      if (Math.abs(turnVel) > 0.02) { turnPos += turnVel * dt; turnVel *= 0.94; }
-      else if (idle && !REDUCED) turnPos += 4.5 * dt;   // idle auto-spin
+      if (Math.abs(turnVel) > 0.05) { turnPos += turnVel * dt; turnVel *= 0.94; }
+      else if (idle && !REDUCED) turnPos += 18 * dt;     // ~19s per revolution at 96f
     }
-    drawTurn();
+    if (turnStarted) drawTurn();
     spin(t);
   });
 })();
@@ -241,8 +305,9 @@ turnCanvas.addEventListener("pointermove", e => {
   if (!dragging) return;
   const dx = e.clientX - lastX;
   lastX = e.clientX;
-  turnPos += dx * TURN.frames / turnCanvas.getBoundingClientRect().width * 1.4;
-  turnVel = dx * 1.6;
+  const step = dx * TURN_N / turnCanvas.getBoundingClientRect().width * 1.4;
+  turnPos += step;
+  turnVel = step * 60;
 });
 ["pointerup", "pointercancel"].forEach(ev => turnCanvas.addEventListener(ev, () => {
   dragging = false;
@@ -250,16 +315,15 @@ turnCanvas.addEventListener("pointermove", e => {
   setTimeout(() => idle = true, 4000);
 }));
 
-/* arm the turntable one viewport early */
 const turnIO = new IntersectionObserver(entries => {
   for (const e of entries) {
     if (!e.isIntersecting) continue;
     turnIO.unobserve(e.target);
-    loadSequence(turnSeq()).then(() => drawTurn(true));
+    loadTurn();
   }
 }, { rootMargin: "100% 0px" });
 turnIO.observe(document.getElementById("act-h"));
 
 /* initial paint */
-acts.forEach(a => a.tick(true));
-loopHud();
+filmTick();
+flowTick();

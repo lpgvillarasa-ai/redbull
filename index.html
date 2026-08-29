@@ -24,54 +24,36 @@
 
 <div id="hud" aria-hidden="true">
   <span id="hud-shot">SHOT A — HERO ORBIT</span>
-  <span id="hud-frame">0001 / 0120</span>
+  <span id="hud-frame">0001 / 0534</span>
 </div>
 
-<main id="film">
+<main>
 
-  <!-- ACT A — HERO -->
-  <section class="act scrub-act" id="act-a" data-seq="hero" data-shot="SHOT A — HERO ORBIT">
+  <!-- THE FILM — one continuous camera journey on one sticky canvas -->
+  <section id="film-act">
     <div class="sticky">
-      <canvas></canvas>
+      <canvas id="film-canvas"></canvas>
       <div class="overlay">
-        <div class="wp wp-center" data-win="0,0.30">
+        <div class="wp wp-center" data-seg="A" data-win="0,0.26">
           <h1 class="mega"><span>GIVES</span> <span>YOU</span> <span>WIIINGS</span></h1>
           <p class="sub">Vitalizes body and mind. One can. 178 countries. Billions of moments.</p>
         </div>
-        <div class="wp wp-left" data-win="0.42,0.62">
+        <div class="wp wp-left" data-seg="A" data-win="0.44,0.68">
           <p class="line">Appreciated worldwide by top athletes, busy professionals, students and travelers.</p>
         </div>
-        <div class="wp wp-right" data-win="0.72,0.94">
+        <div class="wp wp-right" data-seg="T1" data-win="0.1,0.85">
           <p class="line">The drink that invented its own category.</p>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ACT B — THE ICON -->
-  <section class="act scrub-act" id="act-b" data-seq="logo" data-shot="SHOT B — LOGO PUSH-IN">
-    <div class="sticky">
-      <canvas></canvas>
-      <div class="overlay">
-        <div class="wp wp-center" data-win="0.06,0.40">
+        <div class="wp wp-center" data-seg="B" data-win="0.08,0.5">
           <h2 class="big">TWO BULLS. ONE SUN.<br>SINCE 1987.</h2>
         </div>
-        <div class="wp wp-low" data-win="0.55,0.95">
+        <div class="wp wp-low" data-seg="B" data-win="0.6,0.97">
           <p class="line narrow">Developed 1984–1987 by Dietrich Mateschitz, inspired by functional drinks from East Asia. First can sold in Austria on April&nbsp;1,&nbsp;1987 — a brand-new product category was born.</p>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ACT C — THE OPENING -->
-  <section class="act scrub-act" id="act-c" data-seq="opening" data-shot="SHOT C — THE OPENING">
-    <div class="sticky">
-      <canvas></canvas>
-      <div class="overlay">
-        <div class="wp wp-center" data-win="0.08,0.45">
+        <div class="wp wp-center" data-seg="C2" data-win="0.05,0.42">
           <h2 class="big">THAT SOUND.<br>YOU ALREADY HEAR IT.</h2>
         </div>
-        <div class="wp wp-ticker" data-win="0.55,0.98">
+        <div class="wp wp-ticker" data-seg="C2" data-win="0.52,0.97">
           <div class="ticker">
             <span>13.9 BILLION CANS SOLD IN 2025</span><i>·</i>
             <span>UP 10.2%</span><i>·</i>
@@ -83,11 +65,14 @@
             <span>~22,000 EMPLOYEES</span><i>·</i>
           </div>
         </div>
+        <div class="wp wp-center" data-seg="E2" data-win="0.62,0.97">
+          <h2 class="mega small">WHAT'S<br>INSIDE</h2>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ACT D — AMBIENT LID LOOP -->
+  <!-- AMBIENT LID LOOP -->
   <section class="act loop-act" id="act-d" data-shot="SHOT D — LID DRIFT · LOOP">
     <video muted loop playsinline preload="none"
            data-webm="public/loops/lid.webm" data-mp4="public/loops/lid.mp4"></video>
@@ -96,19 +81,7 @@
     </div>
   </section>
 
-  <!-- ACT E — THE POUR -->
-  <section class="act scrub-act" id="act-e" data-seq="pour" data-shot="SHOT E — THE POUR">
-    <div class="sticky">
-      <canvas></canvas>
-      <div class="overlay">
-        <div class="wp wp-center" data-win="0.60,0.95">
-          <h2 class="mega small">WHAT'S<br>INSIDE</h2>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ACT F — INGREDIENTS -->
+  <!-- INGREDIENTS -->
   <section class="act ingredients" id="act-f" data-shot="SHOT F — INGREDIENTS · LOOP">
     <div class="ing-bg">
       <video muted loop playsinline preload="none"
@@ -143,7 +116,7 @@
     </div>
   </section>
 
-  <!-- ACT G — IN ITS ELEMENT -->
+  <!-- IN ITS ELEMENT -->
   <section class="act loop-act tall" id="act-g" data-shot="SHOT G — IN ITS ELEMENT · LOOP">
     <video muted loop playsinline preload="none"
            data-webm="public/loops/element.webm" data-mp4="public/loops/element.mp4"></video>
@@ -157,7 +130,7 @@
     </div>
   </section>
 
-  <!-- ACT H — TURNTABLE -->
+  <!-- TURNTABLE -->
   <section class="act turntable" id="act-h" data-shot="SHOT H — TURNTABLE 360°">
     <h2 class="big center">THE ONE THAT<br>STARTED IT ALL.</h2>
     <div class="turn-stage">
