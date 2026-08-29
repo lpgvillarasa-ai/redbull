@@ -17,13 +17,18 @@ import sys
 from shotlib import ROOT, load_config, ffmpeg_exe, run, probe_frames, spread_indices, dir_size_mb
 
 
-def extract(source, out_dir, n_frames, width, quality, budget_mb, q_step, q_floor):
+def extract(source, out_dir, n_frames, width, quality, budget_mb, q_step, q_floor,
+            exclusive_end=False):
     source = os.path.join(ROOT, source)
     out_dir = os.path.join(ROOT, out_dir)
     total = probe_frames(source)
     if total < n_frames:
         sys.exit(f"{source}: only {total} frames, need {n_frames} — reshoot longer/higher-fps take")
-    idx = spread_indices(total, n_frames)
+    if exclusive_end:
+        # wrap-around loop (turntable): last frame must NOT repeat the first
+        idx = sorted({min(total - 1, round(i * total / n_frames)) for i in range(n_frames)})
+    else:
+        idx = spread_indices(total, n_frames)
     select = "+".join(f"eq(n\\,{i})" for i in idx)
     q = quality
     while True:
@@ -59,7 +64,7 @@ def main():
     if "--turntable" in sys.argv:
         t = cfg["turntable"]
         extract(t["source"], t["dir"], t["frames"], t["width"], t["quality"],
-                t["budget_mb"], q_step, q_floor)
+                t["budget_mb"], q_step, q_floor, exclusive_end=True)
         return
 
     for name, seq in cfg["sequences"].items():
