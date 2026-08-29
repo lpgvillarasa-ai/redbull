@@ -146,7 +146,7 @@ def bubbles(frame, t, region=(0, 0, W, H), density=1.0, amber_bg=False):
         x = np.linspace(-1, 1, x1 - x0)[None, :]
         amb = np.stack([120 + 90 * (1 - y) - 30 * x ** 2,
                         70 + 60 * (1 - y) - 20 * x ** 2,
-                        10 + 18 * (1 - y)], -1)
+                        10 + 18 * (1 - y) + 0 * x], -1)
         frame.paste(Image.fromarray(np.clip(amb, 0, 255).astype(np.uint8)), (x0, y0))
     n = int(len(BUBBLES) * density)
     for bx, ph, s in BUBBLES[:n]:
