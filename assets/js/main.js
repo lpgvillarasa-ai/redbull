@@ -101,6 +101,7 @@ function drawCover(img, alpha) {
 }
 
 let gFrame = -1;
+let gSmooth = 0;                             // eased-by-inertia, not by curve
 
 function draw(g) {
   const i = segAt(g);
@@ -137,7 +138,12 @@ function filmTick() {
   const rect = filmSection.getBoundingClientRect();
   const span = rect.height - innerHeight;
   const p = Math.min(1, Math.max(0, -rect.top / span));
-  const g = Math.round(ease(p) * (TOTAL - 1));
+  // LINEAR scroll->frame mapping (a global easing curve makes the film crawl
+  // at the ends and rush the middle); smoothness comes from per-frame inertia
+  const target = p * (TOTAL - 1);
+  gSmooth += (target - gSmooth) * (REDUCED ? 1 : 0.22);
+  if (Math.abs(target - gSmooth) < 0.05) gSmooth = target;
+  const g = Math.round(gSmooth);
   if (g !== gFrame) {
     gFrame = g;
     draw(g);
@@ -309,6 +315,7 @@ function drawTurn() {
       else if (idle && !REDUCED) turnPos += 18 * dt;     // ~19s per revolution at 96f
     }
     if (turnStarted) drawTurn();
+    filmTick();
     spin(t);
   });
 })();
