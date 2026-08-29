@@ -71,12 +71,7 @@
     "dir": "public/turn/original",
     "source_chroma_hex": "#1E3F8F",
     "colorways": [
-      { "id": "original", "name": "Original",         "line": "The one that started it all. 1987.",        "hex": "#1E3F8F", "recolor": false },
-      { "id": "seablue",  "name": "Sea Blue Edition", "line": "The taste of juneberry.",                   "hex": "#0E7C9E", "recolor": true, "dir": "public/turn/seablue" },
-      { "id": "pink",     "name": "Pink Edition",     "line": "Raspberry with herbal verbena.",            "hex": "#D6336C", "recolor": true, "dir": "public/turn/pink" },
-      { "id": "yellow",   "name": "Yellow Edition",   "line": "The taste of tropical fruits.",             "hex": "#F5C400", "recolor": true, "dir": "public/turn/yellow" },
-      { "id": "peach",    "name": "Peach Edition",    "line": "White peach, citrus peel, floral notes.",   "hex": "#F49A6A", "recolor": true, "dir": "public/turn/peach" },
-      { "id": "red",      "name": "Red Edition",      "line": "The taste of watermelon.",                  "hex": "#D62839", "recolor": true, "dir": "public/turn/red" }
+      { "id": "original", "name": "Original", "line": "The one that started it all. 1987.", "hex": "#1E3F8F", "recolor": false }
     ]
   },
   "loops": {

@@ -12,15 +12,7 @@ const SEQ = {
   opening: { dir: MOBILE ? "public/seq-m/opening" : "public/seq/opening", frames: MOBILE ? 45 : 90 },
   pour:    { dir: MOBILE ? "public/seq-m/pour"    : "public/seq/pour",    frames: MOBILE ? 45 : 90 },
 };
-const TURN = { frames: 24, dir: id => `public/turn/${id}` };
-const EDITIONS = [
-  { id: "original", name: "Original",         line: "The one that started it all. 1987.", hex: "#1e3f8f" },
-  { id: "seablue",  name: "Sea Blue Edition", line: "The taste of juneberry.",            hex: "#0e7c9e" },
-  { id: "pink",     name: "Pink Edition",     line: "Raspberry with herbal verbena.",     hex: "#d6336c" },
-  { id: "yellow",   name: "Yellow Edition",   line: "The taste of tropical fruits.",      hex: "#f5c400" },
-  { id: "peach",    name: "Peach Edition",    line: "White peach, citrus peel, floral notes.", hex: "#f49a6a" },
-  { id: "red",      name: "Red Edition",      line: "The taste of watermelon.",           hex: "#d62839" },
-];
+const TURN = { frames: 24, dir: () => "public/turn/original" };
 
 const pad = n => String(n).padStart(4, "0");
 const frameURL = (dir, i) => `${dir}/${pad(i + 1)}.webp`;
@@ -205,13 +197,12 @@ document.querySelectorAll(".count").forEach(el => countIO.observe(el));
 /* ---------- turntable ---------- */
 const turnCanvas = document.getElementById("turn-canvas");
 const turnCtx = turnCanvas.getContext("2d");
-const turnCache = {};                       // id -> {images, promise}
-let turnFrame = 0, turnPos = 0, turnVel = 0, activeEdition = EDITIONS[0];
+const turnSequence = { dir: TURN.dir(), frames: TURN.frames };
+let turnFrame = 0, turnPos = 0, turnVel = 0;
 let dragging = false, lastX = 0, idle = true;
 
-function turnSeq(id) {
-  if (!turnCache[id]) turnCache[id] = { dir: TURN.dir(id), frames: TURN.frames };
-  return turnCache[id];
+function turnSeq() {
+  return turnSequence;
 }
 function sizeTurn() {
   const r = turnCanvas.getBoundingClientRect();
@@ -222,7 +213,7 @@ sizeTurn();
 addEventListener("resize", () => { sizeTurn(); drawTurn(true); });
 
 function drawTurn(force) {
-  const seq = turnSeq(activeEdition.id);
+  const seq = turnSeq();
   if (!seq.images) return;
   const f = ((Math.round(turnPos) % TURN.frames) + TURN.frames) % TURN.frames;
   if (f === turnFrame && !force) return;
@@ -259,34 +250,12 @@ turnCanvas.addEventListener("pointermove", e => {
   setTimeout(() => idle = true, 4000);
 }));
 
-/* swatches */
-const swatchBox = document.getElementById("swatches");
-const editionLine = document.getElementById("edition-line");
-EDITIONS.forEach((ed, i) => {
-  const b = document.createElement("button");
-  b.style.setProperty("--sw", ed.hex);
-  b.setAttribute("role", "tab");
-  b.setAttribute("aria-selected", i === 0 ? "true" : "false");
-  b.setAttribute("aria-label", ed.name);
-  b.title = ed.name;
-  b.addEventListener("click", () => selectEdition(ed, b));
-  swatchBox.appendChild(b);
-});
-function selectEdition(ed, btn) {
-  activeEdition = ed;
-  swatchBox.querySelectorAll("button").forEach(x => x.setAttribute("aria-selected", x === btn ? "true" : "false"));
-  editionLine.textContent = ed.line;
-  document.documentElement.style.setProperty("--edition", ed.hex);
-  loadSequence(turnSeq(ed.id)).then(() => drawTurn(true));
-}
-
 /* arm the turntable one viewport early */
 const turnIO = new IntersectionObserver(entries => {
   for (const e of entries) {
     if (!e.isIntersecting) continue;
     turnIO.unobserve(e.target);
-    loadSequence(turnSeq("original")).then(() => drawTurn(true));
-    EDITIONS.slice(1).forEach(ed => loadSequence(turnSeq(ed.id))); // warm the cache
+    loadSequence(turnSeq()).then(() => drawTurn(true));
   }
 }, { rootMargin: "100% 0px" });
 turnIO.observe(document.getElementById("act-h"));
