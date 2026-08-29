@@ -242,22 +242,37 @@ const countIO = new IntersectionObserver(entries => {
 }, { threshold: 0.6 });
 document.querySelectorAll(".count").forEach(el => countIO.observe(el));
 
-/* ---------- turntable: 96 frames, fractional angle, wrap-blended ---------- */
+/* ---------- turntable: 96 frames, fractional angle, wrap-blended,
+   one deterministic recolor set per Edition ---------- */
 const TURN_N = 96;
+const EDITIONS = [
+  { id: "original", name: "Original",         line: "The one that started it all. 1987.",      hex: "#1e3f8f" },
+  { id: "seablue",  name: "Sea Blue Edition", line: "The taste of juneberry.",                 hex: "#0e7c9e" },
+  { id: "pink",     name: "Pink Edition",     line: "Raspberry with herbal verbena.",          hex: "#d6336c" },
+  { id: "yellow",   name: "Yellow Edition",   line: "The taste of tropical fruits.",           hex: "#f5c400" },
+  { id: "peach",    name: "Peach Edition",    line: "White peach, citrus peel, floral notes.", hex: "#f49a6a" },
+  { id: "red",      name: "Red Edition",      line: "The taste of watermelon.",                hex: "#d62839" },
+];
 const turnCanvas = document.getElementById("turn-canvas");
 const turnCtx = turnCanvas.getContext("2d");
-const turnImgs = new Array(TURN_N);
+const turnSets = {};                         // id -> Image[]
+let activeEdition = EDITIONS[0];
 let turnStarted = false, turnPos = 0, turnVel = 0;
 let dragging = false, lastX = 0, idle = true;
 
+function loadTurnSet(id) {
+  if (turnSets[id]) return;
+  turnSets[id] = Array.from({ length: TURN_N }, (_, f) => {
+    const img = new Image();
+    img.src = `public/turn/${id}/${pad(f + 1)}.webp`;
+    return img;
+  });
+}
 function loadTurn() {
   if (turnStarted) return;
   turnStarted = true;
-  for (let f = 0; f < TURN_N; f++) {
-    const img = new Image();
-    img.src = `public/turn/original/${pad(f + 1)}.webp`;
-    turnImgs[f] = img;
-  }
+  loadTurnSet("original");
+  EDITIONS.slice(1).forEach(ed => loadTurnSet(ed.id));   // warm the cache
 }
 function sizeTurn() {
   const r = turnCanvas.getBoundingClientRect();
@@ -278,11 +293,13 @@ function turnDrawImg(img, alpha) {
   turnCtx.globalAlpha = 1;
 }
 function drawTurn() {
+  const imgs = turnSets[activeEdition.id];
+  if (!imgs) return;
   const posMod = ((turnPos % TURN_N) + TURN_N) % TURN_N;
   const i = Math.floor(posMod);
   const frac = posMod - i;
-  turnDrawImg(turnImgs[i], 1);
-  if (frac > 0.001) turnDrawImg(turnImgs[(i + 1) % TURN_N], frac);   // across the wrap too
+  turnDrawImg(imgs[i], 1);
+  if (frac > 0.001) turnDrawImg(imgs[(i + 1) % TURN_N], frac);   // across the wrap too
 }
 (function spin(prev) {
   requestAnimationFrame(t => {
@@ -314,6 +331,27 @@ turnCanvas.addEventListener("pointermove", e => {
   turnCanvas.classList.remove("dragging");
   setTimeout(() => idle = true, 4000);
 }));
+
+/* Edition swatches */
+const swatchBox = document.getElementById("swatches");
+const editionLine = document.getElementById("edition-line");
+EDITIONS.forEach((ed, i) => {
+  const b = document.createElement("button");
+  b.style.setProperty("--sw", ed.hex);
+  b.setAttribute("role", "tab");
+  b.setAttribute("aria-selected", i === 0 ? "true" : "false");
+  b.setAttribute("aria-label", ed.name);
+  b.title = ed.name;
+  b.addEventListener("click", () => {
+    activeEdition = ed;
+    swatchBox.querySelectorAll("button").forEach(x =>
+      x.setAttribute("aria-selected", x === b ? "true" : "false"));
+    editionLine.textContent = ed.line;
+    document.documentElement.style.setProperty("--edition", ed.hex);
+    loadTurnSet(ed.id);
+  });
+  swatchBox.appendChild(b);
+});
 
 const turnIO = new IntersectionObserver(entries => {
   for (const e of entries) {

@@ -9,6 +9,7 @@
   --ink-2: #070b18;
   --paper: #e9edf6;
   --dim: #8b93ad;
+  --edition: #1e3f8f;           /* tinted per active Edition */
   --display: "Anton", "Archivo", sans-serif;
   --body: "Archivo", sans-serif;
   --mono: "IBM Plex Mono", monospace;
@@ -176,8 +177,9 @@ body {
   min-height: 100vh; padding: 16vh 6vw 12vh;
   display: flex; flex-direction: column; align-items: center; gap: 3vh;
   background:
-    radial-gradient(60% 45% at 50% 60%, color-mix(in srgb, var(--cobalt) 26%, transparent), transparent 75%),
+    radial-gradient(60% 45% at 50% 60%, color-mix(in srgb, var(--edition) 26%, transparent), transparent 75%),
     var(--ink);
+  transition: background 1s ease;
 }
 .turn-stage { position: relative; width: min(920px, 92vw); }
 #turn-canvas {
@@ -193,6 +195,14 @@ body {
   font-family: var(--display); font-size: clamp(1.3rem, 3vw, 2.2rem);
   text-transform: uppercase; color: var(--paper); text-align: center; min-height: 1.3em;
 }
+.swatches { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.swatches button {
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; background: var(--sw, #888);
+  outline-offset: 4px; transition: transform .25s, border-color .25s;
+}
+.swatches button:hover { transform: scale(1.12); }
+.swatches button[aria-selected="true"] { border-color: var(--paper); transform: scale(1.18); }
 .caption { font-size: .85rem; color: var(--dim); letter-spacing: .06em; }
 
 /* ---------- footer ---------- */
