@@ -40,16 +40,13 @@ def result_url(job):
     """Pull the full-res result URL; refuse preview/min/resize variants."""
     if isinstance(job, list):
         job = job[0]
-    results = job.get("results") or job.get("result") or {}
-    if isinstance(results, dict):
-        url = (results.get("raw") or {}).get("url") or results.get("url")
-    else:
-        url = results
+    url = job.get("result_url")
     if not url:
-        for k, v in job.items():
-            if "url" in k.lower() and isinstance(v, str):
-                url = v
-                break
+        results = job.get("results") or job.get("result") or {}
+        if isinstance(results, dict):
+            url = (results.get("raw") or {}).get("url") or results.get("url")
+        elif isinstance(results, str):
+            url = results
     if not url:
         sys.exit(f"no result url in job:\n{json.dumps(job, indent=2)[:2000]}")
     if "_min" in url or "_resize" in url:
