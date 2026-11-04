@@ -29,49 +29,71 @@ const VH_PER_FRAME = MOBILE ? 8 : 4;        // same physical scroll length eithe
 const pad = n => String(n).padStart(4, "0");
 const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
-/* ---------- segment loading ---------- */
-SEGMENTS.forEach(s => { s.images = null; s.started = false; });
-
-function loadSegment(i, onProgress) {
-  const seg = SEGMENTS[i];
-  if (!seg || seg.started) return seg && seg.promise;
-  seg.started = true;
-  seg.images = new Array(seg.frames);
-  let done = 0;
-  seg.promise = Promise.all(Array.from({ length: seg.frames }, (_, f) =>
-    new Promise(resolve => {
-      const img = new Image();
-      img.onload = img.onerror = () => {
-        done++; onProgress?.(done / seg.frames);
-        if (img === nearestPending) redraw();
-        resolve();
-      };
-      img.src = `${FILM_DIR}/${seg.id}/${pad(f + 1)}.webp`;
-      seg.images[f] = img;
-    })
-  )).then(() => redraw());
-  return seg.promise;
-}
-let nearestPending = null;                  // the substituted-for image; redraw when it lands
+/* ---------- frame loading: the whole film, coarse to fine ----------
+   The film is hundreds of large frames, more than can arrive while someone
+   scrolls through it. So frames are not fetched shot by shot: every frame is
+   weighed by how far it is from where the visitor is in the film and how
+   coarse it is (every 16th frame first, then every 8th, 4th, 2nd, then the
+   rest). The spot on screen fills in densely, the rest of the film gets an
+   even spread early, and the picture always has a near frame to show
+   instead of freezing on an earlier shot. */
+const FRAMES = new Array(TOTAL);             // global frame index -> Image, once requested
+const NET_MAX = MOBILE ? 4 : 6;              // downloads at a time
+let netActive = 0, readyCount = 0;
+let playhead = 0;                            // the frame the visitor is scrolling toward
+const levelOf = g => (g % 16 === 0 ? 16 : g % 8 === 0 ? 8 : g % 4 === 0 ? 4 : g % 2 === 0 ? 2 : 1);
 
 function segAt(g) {
   let i = 0;
   while (i < SEGMENTS.length - 1 && g >= PREFIX[i + 1]) i++;
   return i;
 }
+function frameUrl(g) {
+  const i = segAt(g);
+  return `${FILM_DIR}/${SEGMENTS[i].id}/${pad(g - PREFIX[i] + 1)}.webp`;
+}
+const isReady = img => !!(img && img.complete && img.naturalWidth);
 
-/* nearest fully-decoded frame in the segment, searching outward — never blank */
-function nearestLoaded(seg, local) {
-  if (!seg.images) return null;
-  for (let d = 0; d < seg.frames; d++) {
-    for (const f of d ? [local - d, local + d] : [local]) {
-      if (f >= 0 && f < seg.frames) {
-        const img = seg.images[f];
-        if (img && img.complete && img.naturalWidth) return img;
-      }
-    }
+function nextFrame() {
+  // lowest cost wins: near the playhead (ahead counts closer than behind) and coarse frames first
+  let best = -1, bestCost = Infinity;
+  for (let g = 0; g < TOTAL; g++) {
+    if (FRAMES[g]) continue;
+    const dist = g >= playhead ? g - playhead : (playhead - g) * 2;
+    const cost = (dist + 4) / levelOf(g);
+    if (cost < bestCost) { bestCost = cost; best = g; }
   }
-  return null;
+  return best;
+}
+function pumpFrames() {
+  while (netActive < NET_MAX) {
+    const g = nextFrame();
+    if (g < 0) return;
+    const img = new Image();
+    img.decoding = "async";
+    FRAMES[g] = img;
+    netActive++;
+    img.onload = img.onerror = () => {
+      netActive--;
+      if (isReady(img)) {
+        readyCount++;
+        onFrameReady(g);
+      }
+      pumpFrames();
+    };
+    img.src = frameUrl(g);
+  }
+}
+
+/* nearest frame that has arrived, searching outward from g: never blank,
+   and never a frame from far away when a closer one exists */
+function nearestReady(g) {
+  for (let d = 0; d < TOTAL; d++) {
+    if (g - d >= 0 && isReady(FRAMES[g - d])) return g - d;
+    if (g + d < TOTAL && isReady(FRAMES[g + d])) return g + d;
+    if (g - d < 0 && g + d >= TOTAL) break;
+  }
+  return -1;
 }
 
 /* ---------- canvas ---------- */
@@ -102,28 +124,30 @@ function drawCover(img, alpha) {
 
 let gFrame = -1;
 let gSmooth = 0;                             // eased-by-inertia, not by curve
+let shown = -1;                              // the frame actually on the canvas
 
 function draw(g) {
-  const i = segAt(g);
-  const seg = SEGMENTS[i];
-  const local = g - PREFIX[i];
-  const exact = seg.images?.[local];
-  const img = (exact && exact.complete && exact.naturalWidth) ? exact : nearestLoaded(seg, local);
-  nearestPending = img === exact ? null : exact;
-  drawCover(img);
+  const k = nearestReady(g);
+  if (k < 0) return;                         // nothing has arrived yet: keep the curtain's black
+  shown = k;
+  drawCover(FRAMES[k]);
   // dissolve insurance across every join (bridges are pinned, this is belt+braces)
   for (const b of JOINS) {
     const d = g - b;
     if (d >= -XFADE && d < XFADE) {
-      const other = d < 0
-        ? nearestLoaded(SEGMENTS[segAt(b)], 0)
-        : nearestLoaded(SEGMENTS[segAt(b - 1)], SEGMENTS[segAt(b - 1)].frames - 1);
-      if (other) drawCover(other, (XFADE - Math.abs(d)) / (XFADE * 2));
+      const o = nearestReady(d < 0 ? b : b - 1);
+      if (o >= 0 && o !== k) drawCover(FRAMES[o], (XFADE - Math.abs(d)) / (XFADE * 2));
       break;
     }
   }
 }
 function redraw() { if (gFrame >= 0) draw(gFrame); }
+
+/* a frame arrived: repaint if it is closer to the playhead than the one on screen */
+function onFrameReady(g) {
+  curtainProgress();
+  if (gFrame >= 0 && (shown < 0 || Math.abs(g - gFrame) < Math.abs(shown - gFrame))) redraw();
+}
 
 /* ---------- HUD + copy waypoints ---------- */
 const hudShot = document.getElementById("hud-shot");
@@ -144,10 +168,11 @@ function filmTick() {
   gSmooth += (target - gSmooth) * (REDUCED ? 1 : 0.22);
   if (Math.abs(target - gSmooth) < 0.05) gSmooth = target;
   const g = Math.round(gSmooth);
+  const aim = Math.round(target);
+  if (aim !== playhead) { playhead = aim; pumpFrames(); }   // steer downloads toward where the visitor is going
   if (g !== gFrame) {
     gFrame = g;
     draw(g);
-    ensureAhead(g);
   }
   if (rect.bottom > innerHeight * 0.5 && rect.top < innerHeight * 0.5) {
     hudShot.textContent = SEGMENTS[segAt(g)].label;
@@ -156,17 +181,11 @@ function filmTick() {
   for (const w of wps) w.el.classList.toggle("on", g >= w.from && g <= w.to);
 }
 
-/* ordered ahead-of-playhead preloading: current segment + the next one */
-function ensureAhead(g) {
-  const i = segAt(g);
-  loadSegment(i);
-  if (i + 1 < SEGMENTS.length && g >= PREFIX[i + 1] - SEGMENTS[i].frames) loadSegment(i + 1);
-}
-
-/* ---------- loader curtain over segment A ---------- */
+/* ---------- loader curtain over the opening ---------- */
 const loaderEl = document.getElementById("loader");
 const fillEl = document.getElementById("loader-fill");
 const pctEl = document.getElementById("loader-pct");
+const CURTAIN = MOBILE ? 20 : 30;            // frames in hand before the film opens (spread over the opening)
 let revealed = false;
 function reveal() {
   if (revealed) return;
@@ -175,14 +194,16 @@ function reveal() {
   gFrame = -1;
   filmTick();
 }
-loadSegment(0, p => {
+function curtainProgress() {
+  if (revealed) return;
+  const p = Math.min(1, readyCount / CURTAIN);
   const pct = Math.round(p * 100);
   fillEl.style.width = pct + "%";
   pctEl.textContent = String(pct).padStart(2, "0") + "%";
-  if (p >= 0.55) reveal();
-});
+  if (p >= 1 && isReady(FRAMES[0])) reveal();
+}
 setTimeout(reveal, 12000);
-loadSegment(1);                              // T1 warms right behind the hero
+pumpFrames();
 
 /* ---------- scroll loop ---------- */
 let raf = null;
