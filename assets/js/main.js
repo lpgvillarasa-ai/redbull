@@ -38,8 +38,16 @@ const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
    even spread early, and the picture always has a near frame to show
    instead of freezing on an earlier shot. */
 const FRAMES = new Array(TOTAL);             // global frame index -> Image, once requested
-const NET_MAX = MOBILE ? 4 : 6;              // downloads at a time
+const TRIES = new Uint8Array(TOTAL);         // failed attempts per frame (retried up to 3 times)
+const NET_MAX = MOBILE ? 4 : 8;              // downloads at a time (each waits on a round trip to the host)
 let netActive = 0, readyCount = 0;
+/* Pacing: the domain's protection blocks a visitor for 10 s after 300 requests in
+   10 s, and a blocked visitor's frames fail, which made the film stutter. So the page
+   (film and turntable together) never asks for more than about 20 files a second. */
+const PACE = { rate: 20, burst: 24, tokens: 24, last: 0, timer: 0 };
+const turnQueue = [];                        // turntable frames waiting to download, in order
+let turnUrgent = false;                      // the turntable is on screen: its frames go first
+let filmInView = true;                       // past the film, the turntable's frames go first too
 let playhead = 0;                            // the frame the visitor is scrolling toward
 const levelOf = g => (g % 16 === 0 ? 16 : g % 8 === 0 ? 8 : g % 4 === 0 ? 4 : g % 2 === 0 ? 2 : 1);
 
@@ -52,7 +60,8 @@ function frameUrl(g) {
   const i = segAt(g);
   return `${FILM_DIR}/${SEGMENTS[i].id}/${pad(g - PREFIX[i] + 1)}.webp`;
 }
-const isReady = img => !!(img && img.complete && img.naturalWidth);
+// ready = downloaded and unpacked, so painting it never stalls the scroll
+const isReady = img => !!(img && img.ready);
 
 function nextFrame() {
   // lowest cost wins: near the playhead (ahead counts closer than behind) and coarse frames first
@@ -65,23 +74,52 @@ function nextFrame() {
   }
   return best;
 }
+function token() {
+  const now = performance.now();
+  PACE.tokens = Math.min(PACE.burst, PACE.tokens + (now - (PACE.last || now)) / 1000 * PACE.rate);
+  PACE.last = now;
+  if (PACE.tokens >= 1) { PACE.tokens -= 1; return true; }
+  if (!PACE.timer) PACE.timer = setTimeout(() => { PACE.timer = 0; pumpFrames(); }, 50);
+  return false;
+}
+/* one download: unpack it before it counts as ready; a failure is retried later */
+function fetchImg(img, src, done, failed) {
+  netActive++;
+  img.onload = () => {
+    (img.decode ? img.decode() : Promise.resolve()).catch(() => {}).then(() => {
+      netActive--;
+      img.ready = true;
+      done();
+      pumpFrames();
+    });
+  };
+  img.onerror = () => { netActive--; failed(); pumpFrames(); };
+  img.src = src;
+}
 function pumpFrames() {
   while (netActive < NET_MAX) {
-    const g = nextFrame();
-    if (g < 0) return;
-    const img = new Image();
-    img.decoding = "async";
-    FRAMES[g] = img;
-    netActive++;
-    img.onload = img.onerror = () => {
-      netActive--;
-      if (isReady(img)) {
-        readyCount++;
-        onFrameReady(g);
-      }
-      pumpFrames();
-    };
-    img.src = frameUrl(g);
+    let job = null;
+    if ((turnUrgent || !filmInView) && turnQueue.length) job = turnQueue.shift();
+    else {
+      const g = nextFrame();
+      if (g >= 0) job = { film: g };
+      else if (turnQueue.length) job = turnQueue.shift();
+    }
+    if (!job) return;
+    if (!token()) { if (job.film === undefined) turnQueue.unshift(job); return; }
+    if (job.film !== undefined) {
+      const g = job.film;
+      const img = new Image();
+      FRAMES[g] = img;
+      fetchImg(img, frameUrl(g), () => { readyCount++; onFrameReady(g); }, () => {
+        // blocked or lost: try again later (FRAMES[g] stays set meanwhile, so it is not asked for again yet)
+        if (++TRIES[g] < 4) setTimeout(() => { FRAMES[g] = undefined; pumpFrames(); }, 2500 * TRIES[g]);
+      });
+    } else {
+      fetchImg(job.img, job.src, () => {}, () => {
+        if (++job.tries < 4) setTimeout(() => { turnQueue.push(job); pumpFrames(); }, 2500 * job.tries);
+      });
+    }
   }
 }
 
@@ -160,6 +198,7 @@ const wps = [...filmSection.querySelectorAll(".wp")].map(el => {
 
 function filmTick() {
   const rect = filmSection.getBoundingClientRect();
+  filmInView = rect.bottom > 0 && rect.top < innerHeight;
   const span = rect.height - innerHeight;
   const p = Math.min(1, Math.max(0, -rect.top / span));
   // LINEAR scroll->frame mapping (a global easing curve makes the film crawl
@@ -287,19 +326,27 @@ let activeEdition = EDITIONS[0];
 let turnStarted = false, turnPos = 0, turnVel = 0;
 let dragging = false, lastX = 0, idle = true;
 
-function loadTurnSet(id) {
-  if (turnSets[id]) return;
-  turnSets[id] = Array.from({ length: TURN_N }, (_, f) => {
-    const img = new Image();
-    img.src = `public/turn/${id}/${pad(f + 1)}.webp`;
-    return img;
-  });
+function loadTurnSet(id, first) {
+  // queued, not fetched at once: six editions of 96 frames would cross the domain's limit
+  if (turnSets[id]) {
+    if (first) {                             // chosen now: move its frames still waiting to the front
+      const mine = turnQueue.filter(j => j.set === id);
+      for (const j of mine) turnQueue.splice(turnQueue.indexOf(j), 1);
+      turnQueue.unshift(...mine);
+      pumpFrames();
+    }
+    return;
+  }
+  turnSets[id] = Array.from({ length: TURN_N }, () => new Image());
+  const jobs = turnSets[id].map((img, f) => ({ set: id, img, src: `public/turn/${id}/${pad(f + 1)}.webp`, tries: 0 }));
+  if (first) turnQueue.unshift(...jobs); else turnQueue.push(...jobs);
+  pumpFrames();
 }
 function loadTurn() {
   if (turnStarted) return;
   turnStarted = true;
-  loadTurnSet("original");
-  EDITIONS.slice(1).forEach(ed => loadTurnSet(ed.id));   // warm the cache
+  loadTurnSet(activeEdition.id, true);
+  EDITIONS.forEach(ed => loadTurnSet(ed.id));            // the others after it, paced
 }
 function sizeTurn() {
   const r = turnCanvas.getBoundingClientRect();
@@ -376,16 +423,15 @@ EDITIONS.forEach((ed, i) => {
       x.setAttribute("aria-selected", x === b ? "true" : "false"));
     editionLine.textContent = ed.line;
     document.documentElement.style.setProperty("--edition", ed.hex);
-    loadTurnSet(ed.id);
+    loadTurnSet(ed.id, true);
   });
   swatchBox.appendChild(b);
 });
 
 const turnIO = new IntersectionObserver(entries => {
   for (const e of entries) {
-    if (!e.isIntersecting) continue;
-    turnIO.unobserve(e.target);
-    loadTurn();
+    turnUrgent = e.isIntersecting;           // near the turntable: its frames go before the film's
+    if (e.isIntersecting) loadTurn();
   }
 }, { rootMargin: "100% 0px" });
 turnIO.observe(document.getElementById("act-h"));
